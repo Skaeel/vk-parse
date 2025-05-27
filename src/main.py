@@ -3,7 +3,11 @@ import json
 import dotenv
 import os
 import re
+import time
 
+from log import setup_logger
+
+logger = setup_logger("vk-parse", "INFO")
 dotenv.load_dotenv()
 
 def resolve_screen_name(screen_name, token):
@@ -28,7 +32,7 @@ def get_wall_post(owner_id, post_id, token):
     if "response" in response and response["response"]["items"]:
         return response["response"]["items"][0]
     else:
-        print(f"Error getting post {owner_id}_{post_id}: {response}")
+        logger.info(f"Error getting post {owner_id}_{post_id}: {response}")
         return None
 
 def get_post_comments(post_id, owner_id, token, count=100):
@@ -45,7 +49,7 @@ def get_post_comments(post_id, owner_id, token, count=100):
     if "response" in response:
         return response["response"]["items"]
     else:
-        print(f"Error getting comments for post {owner_id}_{post_id}: {response}")
+        logger.error(f"Error getting comments for post {owner_id}_{post_id}: {response}")
         return []
 
 if __name__ == "__main__":
@@ -57,10 +61,10 @@ if __name__ == "__main__":
     all_data = []
 
     for link in links:
-        print(f"Processing link: {link}")
+        logger.info(f"Processing link: {link}")
 
         if "t.me" in link:
-            print(f"Ignoring Telegram link: {link}")
+            logger.info(f"Ignoring Telegram link: {link}")
             continue
 
         match = re.search(r"https?://vk\.com/([a-zA-Z0-9_\-]+)", link)
@@ -99,7 +103,7 @@ if __name__ == "__main__":
             else:
                 info = resolve_screen_name(screen_name, token)
                 if not info:
-                    print(f"Could not resolve screen_name: {screen_name}")
+                    logger.info(f"Could not resolve screen_name: {screen_name}")
                     continue
 
                 object_type = info["type"]
@@ -113,8 +117,10 @@ if __name__ == "__main__":
                     "object_id": object_id,
                     "type": object_type
                 })
+                
+            time.sleep(0.5) # ! VK API разрешает 2-3 запроса от токена в секунду
 
     with open("output.json", "w", encoding="utf-8") as f:
         json.dump(all_data, f, ensure_ascii=False, indent=4)
 
-    print("Data successfully saved to output.json")
+    logger.info("Data successfully saved to output.json")
