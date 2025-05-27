@@ -123,3 +123,4 @@ get-pip.py
 #other
 src/output.json
 src/todo.txt
+src/logs
