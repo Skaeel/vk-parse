@@ -20,20 +20,21 @@ def resolve_screen_name(screen_name, token):
     response = requests.get(url, params=params).json()
     return response.get("response")
 
-def get_wall_post(owner_id, post_id, token):
-    url = f"https://api.vk.com/method/wall.getById"
+def get_wall_posts(owner_id, token, count=100):
+    url = f"https://api.vk.com/method/wall.get"
     params = {
-        "posts": f"{owner_id}_{post_id}",
+        "owner_id": owner_id,
+        "count": count,
         "access_token": token,
         "v": "5.131",
         "extended": 1
     }
     response = requests.get(url, params=params).json()
     if "response" in response and response["response"]["items"]:
-        return response["response"]["items"][0]
+        return response["response"]["items"]
     else:
-        logger.info(f"Error getting post {owner_id}_{post_id}: {response}")
-        return None
+        logger.error(f"Error getting posts for owner_id {owner_id}: {response}")
+        return []
 
 def get_post_comments(post_id, owner_id, token, count=100):
     url = f"https://api.vk.com/method/wall.getComments"
@@ -71,54 +72,48 @@ if __name__ == "__main__":
         if match:
             screen_name = match.group(1)
 
-            wall_match = re.search(r"wall(-?\d+)_(\d+)", link)
-            if wall_match:
-                owner_id = int(wall_match.group(1))
-                post_id = int(wall_match.group(2))
+            info = resolve_screen_name(screen_name, token)
+            if not info:
+                logger.info(f"Could not resolve screen_name: {screen_name}")
+                continue
 
-                post = get_wall_post(owner_id, post_id, token)
-                if post:
-                    post_info = {
-                        "post_id": post.get("id"),
-                        "text": post.get("text"),
-                        "attachments": [],
-                        "comments": []
-                    }
+            object_type = info["type"]
+            object_id = info["object_id"]
 
-                    if "attachments" in post:
-                        for attachment in post["attachments"]:
-                            if attachment["type"] == "photo":
-                                photo = attachment["photo"]
-                                max_size_url = max(photo["sizes"], key=lambda x: x["width"] * x["height"])["url"]
-                                post_info["attachments"].append({"type": "photo", "url": max_size_url})
+            if object_type == "group":
+                object_id = -object_id
 
-                    comments = get_post_comments(post_id, owner_id, token)
-                    post_info["comments"] = [{"comment_id": c.get("id"), "from_id": c.get("from_id"), "text": c.get("text")} for c in comments]
+            posts = get_wall_posts(object_id, token)
+            group_info = {
+                "screen_name": screen_name,
+                "object_id": object_id,
+                "type": object_type,
+                "posts": []
+            }
 
-                    all_data.append({
-                        "screen_name": screen_name,
-                        "post": post_info
-                    })
+            for post in posts:
+                post_info = {
+                    "post_id": post.get("id"),
+                    "text": post.get("text"),
+                    "attachments": [],
+                    "comments": []
+                }
 
-            else:
-                info = resolve_screen_name(screen_name, token)
-                if not info:
-                    logger.info(f"Could not resolve screen_name: {screen_name}")
-                    continue
+                if "attachments" in post:
+                    for attachment in post["attachments"]:
+                        if attachment["type"] == "photo":
+                            photo = attachment["photo"]
+                            max_size_url = max(photo["sizes"], key=lambda x: x["width"] * x["height"])["url"]
+                            post_info["attachments"].append({"type": "photo", "url": max_size_url})
 
-                object_type = info["type"]
-                object_id = info["object_id"]
+                comments = get_post_comments(post.get("id"), object_id, token)
+                post_info["comments"] = [{"comment_id": c.get("id"), "from_id": c.get("from_id"), "text": c.get("text")} for c in comments]
 
-                if object_type == "group":
-                    object_id = -object_id
+                group_info["posts"].append(post_info)
 
-                all_data.append({
-                    "screen_name": screen_name,
-                    "object_id": object_id,
-                    "type": object_type
-                })
-                
-            time.sleep(0.5) # ! VK API разрешает 2-3 запроса от токена в секунду
+            all_data.append(group_info)
+
+            time.sleep(0.5)
 
     with open("output.json", "w", encoding="utf-8") as f:
         json.dump(all_data, f, ensure_ascii=False, indent=4)
