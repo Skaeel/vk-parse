@@ -1,14 +1,8 @@
 import requests
 import json
-import dotenv
 import os
 import re
 import time
-
-from log import setup_logger
-
-logger = setup_logger("vk-parse", "INFO")
-dotenv.load_dotenv()
 
 def resolve_screen_name(screen_name, token):
     url = f"https://api.vk.com/method/utils.resolveScreenName"

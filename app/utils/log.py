@@ -27,6 +27,8 @@ class CustomFormatter(logging.Formatter):
 
 
 class PlainFormatter(logging.Formatter):
+    """Форматтер для файла без цветовых кодов"""
+
     _format = "[%(name)s] [%(asctime)s] %(levelname)s - [%(filename)s:%(funcName)s:%(lineno)d] %(message)s"
 
     def format(self, record):
@@ -55,3 +57,6 @@ def setup_logger(name: str, level: str) -> logging.Logger:
     logger.addHandler(file_handler)
 
     return logger
+
+
+logger = setup_logger("vk-parse", "INFO")
